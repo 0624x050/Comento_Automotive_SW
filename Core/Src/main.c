@@ -1,46 +1,14 @@
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * <h2><center>&copy; Copyright (c) 2025 STMicroelectronics.
-  * All rights reserved.</center></h2>
-  *
-  * This software component is licensed by ST under BSD 3-Clause license,
-  * the "License"; You may not use this file except in compliance with the
-  * License. You may obtain a copy of the License at:
-  *                        opensource.org/licenses/BSD-3-Clause
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
+
+
 #include "main.h"
 #include "cmsis_os.h"
 
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
+#define FLAG_I2C_DONE     (1 << 0)
+#define FLAG_SPI_DONE     (1 << 1)
+#define FLAG_CAN_DONE     (1 << 2)
+#define FLAG_UART_DONE    (1 << 3)
 
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
+// HandleTypeDef
 ADC_HandleTypeDef hadc1;
 
 CAN_HandleTypeDef hcan1;
@@ -61,28 +29,30 @@ DMA_HandleTypeDef hdma_spi2_tx;
 
 UART_HandleTypeDef huart4;
 
-/* Definitions for defaultTask */
+// RTOS
+osEventFlagsId_t CommEventFlagHandle;
+
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for I2CTask */
+
 osThreadId_t I2CTaskHandle;
 const osThreadAttr_t I2CTask_attributes = {
   .name = "I2CTask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for SPITask */
+
 osThreadId_t SPITaskHandle;
 const osThreadAttr_t SPITask_attributes = {
   .name = "SPITask",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for CANTask */
+
 osThreadId_t CANTaskHandle;
 const osThreadAttr_t CANTask_attributes = {
   .name = "CANTask",
@@ -96,7 +66,7 @@ const osThreadAttr_t UARTTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for CanQueue */
+
 osMessageQueueId_t CanQueueHandle;
 const osMessageQueueAttr_t CanQueue_attributes = {
   .name = "CanQueue"
@@ -106,11 +76,9 @@ osMutexId_t CommMutexHandleHandle;
 const osMutexAttr_t CommMutexHandle_attributes = {
   .name = "CommMutexHandle"
 };
-/* USER CODE BEGIN PV */
 
-/* USER CODE END PV */
 
-/* Private function prototypes -----------------------------------------------*/
+// Function Declaration
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
@@ -127,42 +95,15 @@ void StartSPITask(void *argument);
 void StartCANTask(void *argument);
 void StartUARTTask(void *argument);
 
-/* USER CODE BEGIN PFP */
 
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
+// main
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
 
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_ADC1_Init();
@@ -172,91 +113,44 @@ int main(void)
   MX_SPI1_Init();
   MX_SPI2_Init();
   MX_UART4_Init();
-  /* USER CODE BEGIN 2 */
 
-  /* USER CODE END 2 */
-
-  /* Init scheduler */
+  // RTOS 커널 초기화
   osKernelInitialize();
-  /* Create the mutex(es) */
-  /* creation of CommMutexHandle */
+
+  // EventFlag 객체 생성
+  CommEventFlagHandle = osEventFlagsNew(NULL);
+
+  // 다른 커널 객체 생성
   CommMutexHandleHandle = osMutexNew(&CommMutexHandle_attributes);
-
-  /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
-  /* USER CODE END RTOS_MUTEX */
-
-  /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
-  /* USER CODE END RTOS_SEMAPHORES */
-
-  /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
-  /* USER CODE END RTOS_TIMERS */
-
-  /* Create the queue(s) */
-  /* creation of CanQueue */
   CanQueueHandle = osMessageQueueNew (8, 8, &CanQueue_attributes);
 
-  /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
-  /* USER CODE END RTOS_QUEUES */
-
-  /* Create the thread(s) */
-  /* creation of defaultTask */
+  // 쓰레드 생성
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
-
-  /* creation of I2CTask */
   I2CTaskHandle = osThreadNew(StartI2CTask, NULL, &I2CTask_attributes);
-
-  /* creation of SPITask */
   SPITaskHandle = osThreadNew(StartSPITask, NULL, &SPITask_attributes);
-
-  /* creation of CANTask */
   CANTaskHandle = osThreadNew(StartCANTask, NULL, &CANTask_attributes);
-
-  /* creation of UARTTask */
   UARTTaskHandle = osThreadNew(StartUARTTask, NULL, &UARTTask_attributes);
 
-  /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
-  /* USER CODE END RTOS_THREADS */
-
-  /* USER CODE BEGIN RTOS_EVENTS */
-  /* add events, ... */
-  /* USER CODE END RTOS_EVENTS */
-
-  /* Start scheduler */
+  // RTOS 시작
   osKernelStart();
 
-  /* We should never get here as control is now taken by the scheduler */
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
   }
-  /* USER CODE END 3 */
+
 }
 
-/**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-  /** Configure the main internal regulator output voltage
-  */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
+
+
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
@@ -265,8 +159,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
+
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
@@ -280,25 +173,14 @@ void SystemClock_Config(void)
   }
 }
 
-/**
-  * @brief ADC1 Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_ADC1_Init(void)
 {
 
-  /* USER CODE BEGIN ADC1_Init 0 */
-
-  /* USER CODE END ADC1_Init 0 */
 
   ADC_ChannelConfTypeDef sConfig = {0};
 
-  /* USER CODE BEGIN ADC1_Init 1 */
 
-  /* USER CODE END ADC1_Init 1 */
-  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
-  */
   hadc1.Instance = ADC1;
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
@@ -315,8 +197,7 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
-  */
+
   sConfig.Channel = ADC_CHANNEL_2;
   sConfig.Rank = 1;
   sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
@@ -324,27 +205,14 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN ADC1_Init 2 */
 
-  /* USER CODE END ADC1_Init 2 */
 
 }
 
-/**
-  * @brief CAN1 Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_CAN1_Init(void)
 {
 
-  /* USER CODE BEGIN CAN1_Init 0 */
-
-  /* USER CODE END CAN1_Init 0 */
-
-  /* USER CODE BEGIN CAN1_Init 1 */
-
-  /* USER CODE END CAN1_Init 1 */
   hcan1.Instance = CAN1;
   hcan1.Init.Prescaler = 16;
   hcan1.Init.Mode = CAN_MODE_NORMAL;
@@ -361,27 +229,13 @@ static void MX_CAN1_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN CAN1_Init 2 */
-
-  /* USER CODE END CAN1_Init 2 */
 
 }
 
-/**
-  * @brief I2C1 Initialization Function
-  * @param None
-  * @retval None
-  */
+
+
 static void MX_I2C1_Init(void)
 {
-
-  /* USER CODE BEGIN I2C1_Init 0 */
-
-  /* USER CODE END I2C1_Init 0 */
-
-  /* USER CODE BEGIN I2C1_Init 1 */
-
-  /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
   hi2c1.Init.ClockSpeed = 100000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
@@ -395,27 +249,12 @@ static void MX_I2C1_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN I2C1_Init 2 */
-
-  /* USER CODE END I2C1_Init 2 */
-
 }
 
-/**
-  * @brief I2C2 Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_I2C2_Init(void)
 {
 
-  /* USER CODE BEGIN I2C2_Init 0 */
-
-  /* USER CODE END I2C2_Init 0 */
-
-  /* USER CODE BEGIN I2C2_Init 1 */
-
-  /* USER CODE END I2C2_Init 1 */
   hi2c2.Instance = I2C2;
   hi2c2.Init.ClockSpeed = 100000;
   hi2c2.Init.DutyCycle = I2C_DUTYCYCLE_2;
@@ -429,28 +268,13 @@ static void MX_I2C2_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN I2C2_Init 2 */
-
-  /* USER CODE END I2C2_Init 2 */
 
 }
 
-/**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_SPI1_Init(void)
 {
 
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
@@ -467,28 +291,13 @@ static void MX_SPI1_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
 
 }
 
-/**
-  * @brief SPI2 Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_SPI2_Init(void)
 {
 
-  /* USER CODE BEGIN SPI2_Init 0 */
-
-  /* USER CODE END SPI2_Init 0 */
-
-  /* USER CODE BEGIN SPI2_Init 1 */
-
-  /* USER CODE END SPI2_Init 1 */
-  /* SPI2 parameter configuration*/
   hspi2.Instance = SPI2;
   hspi2.Init.Mode = SPI_MODE_MASTER;
   hspi2.Init.Direction = SPI_DIRECTION_2LINES;
@@ -505,27 +314,13 @@ static void MX_SPI2_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN SPI2_Init 2 */
-
-  /* USER CODE END SPI2_Init 2 */
 
 }
 
-/**
-  * @brief UART4 Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_UART4_Init(void)
 {
 
-  /* USER CODE BEGIN UART4_Init 0 */
-
-  /* USER CODE END UART4_Init 0 */
-
-  /* USER CODE BEGIN UART4_Init 1 */
-
-  /* USER CODE END UART4_Init 1 */
   huart4.Instance = UART4;
   huart4.Init.BaudRate = 115200;
   huart4.Init.WordLength = UART_WORDLENGTH_8B;
@@ -538,24 +333,17 @@ static void MX_UART4_Init(void)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN UART4_Init 2 */
 
-  /* USER CODE END UART4_Init 2 */
 
 }
 
-/**
-  * Enable DMA controller clock
-  */
+
 static void MX_DMA_Init(void)
 {
 
-  /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_DMA2_CLK_ENABLE();
 
-  /* DMA interrupt init */
-  /* DMA1_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
   /* DMA1_Stream2_IRQn interrupt configuration */
@@ -582,11 +370,7 @@ static void MX_DMA_Init(void)
 
 }
 
-/**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
+
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -617,113 +401,81 @@ static void MX_GPIO_Init(void)
 
 }
 
-/* USER CODE BEGIN 4 */
 
-/* USER CODE END 4 */
-
-/* USER CODE BEGIN Header_StartDefaultTask */
-/**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used
-  * @retval None
-  */
-/* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void *argument)
 {
-  /* USER CODE BEGIN 5 */
-  /* Infinite loop */
+
   for(;;)
   {
     osDelay(1);
   }
-  /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_StartI2CTask */
-/**
-* @brief Function implementing the I2CTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartI2CTask */
-void StartI2CTask(void *argument)
+
+void StartI2CTask(void *argument) // DMA Interrupt : I2C Task -> SPI Task
 {
-  /* USER CODE BEGIN StartI2CTask */
-  /* Infinite loop */
-  for(;;)
+  while (1)
   {
-    osDelay(1);
+    HAL_I2C_Master_Receive_DMA(&hi2c1, SLAVE_ADDR, buffer, 8);
+    osDelay(100);  // DMA 완료는 콜백에서 처리
+
+    osEventFlagsSet(CommEventFlagHandle, FLAG_I2C_DONE);	// SPI Task 신호
+    osEventFlagsWait(CommEventFlagHandle, FLAG_UART_DONE, osFlagsWaitAny, osWaitForever); // UART Task 완료 대기
   }
-  /* USER CODE END StartI2CTask */
 }
 
-/* USER CODE BEGIN Header_StartSPITask */
-/**
-* @brief Function implementing the SPITask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartSPITask */
-void StartSPITask(void *argument)
+void StartSPITask(void *argument) // DMA Interrupt : SPI Task -> CAN Task
 {
-  /* USER CODE BEGIN StartSPITask */
-  /* Infinite loop */
-  for(;;)
+  while (1)
   {
-    osDelay(1);
+    osEventFlagsWait(CommEventFlagHandle, FLAG_I2C_DONE, osFlagsWaitAny, osWaitForever); // I2C Task 완료 대기
+
+    HAL_SPI_TransmitReceive_DMA(&hspi1, txBuf, rxBuf, 8);
+    osDelay(100);
+
+    osEventFlagsSet(CommEventFlagHandle, FLAG_SPI_DONE); // CAN Task 신호
   }
-  /* USER CODE END StartSPITask */
 }
 
-/* USER CODE BEGIN Header_StartCANTask */
-/**
-* @brief Function implementing the CANTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartCANTask */
-void StartCANTask(void *argument)
+void StartCANTask(void *argument) // Interrupt : CAN Task -> UART Task
 {
-  /* USER CODE BEGIN StartCANTask */
-  /* Infinite loop */
-  for(;;)
+  while (1)
   {
-    osDelay(1);
+    osEventFlagsWait(CommEventFlagHandle, FLAG_SPI_DONE, osFlagsWaitAny, osWaitForever);
+
+    // CAN 동작 수행
+    HAL_CAN_AddTxMessage(&hcan1, &TxHeader, txData, &TxMailbox);
+    osDelay(100);
+
+    osEventFlagsSet(CommEventFlagHandle, FLAG_CAN_DONE);
   }
-  /* USER CODE END StartCANTask */
 }
 
-/* USER CODE BEGIN Header_StartUARTTask */
-/**
-* @brief Function implementing the UARTTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_StartUARTTask */
+
 void StartUARTTask(void *argument)
 {
-  /* USER CODE BEGIN StartUARTTask */
-  /* Infinite loop */
-  for(;;)
+  while (1)
   {
-    osDelay(1);
+	// Function : 이벤트 플래그의 특정 비트가 설정될 때까지 대기
+	// 매개변수   : 이벤트 플래그 ID / 대기 할 비트의 값 / 이벤트 조건 / 대기 제한 시간
+    osEventFlagsWait(CommEventFlagHandle, FLAG_CAN_DONE, osFlagsWaitAny, osWaitForever);
+
+    // UART polling
+    HAL_UART_Transmit(&huart4, txBuf, 8, HAL_MAX_DELAY);
+    osDelay(100);
+
+    osEventFlagsSet(CommEventFlagHandle, FLAG_UART_DONE);
   }
-  /* USER CODE END StartUARTTask */
 }
 
-/**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+
 void Error_Handler(void)
 {
-  /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
+
   __disable_irq();
   while (1)
   {
   }
-  /* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT
