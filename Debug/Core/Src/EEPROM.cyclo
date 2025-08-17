@@ -1,0 +1,5 @@
+../Core/Src/EEPROM.c:13:19:EEPROM_WriteEnable	1
+../Core/Src/EEPROM.c:23:19:EEPROM_ReadStatus	2
+../Core/Src/EEPROM.c:38:19:EEPROM_WaitForWrite	2
+../Core/Src/EEPROM.c:51:19:EEPROM_WriteData	4
+../Core/Src/EEPROM.c:78:19:EEPROM_ReadData	2

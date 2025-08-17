@@ -1,0 +1,11 @@
+../Core/Src/DTC.c:13:26:CAN_SendUDS	1
+../Core/Src/DTC.c:26:26:CAN_RecvUDS	6
+../Core/Src/DTC.c:47:19:DTC_SetTransceiverNormal	1
+../Core/Src/DTC.c:52:19:DTC_SetTransceiverSilent	1
+../Core/Src/DTC.c:58:19:DTC_Init	3
+../Core/Src/DTC.c:73:19:DTC_UDS_Clear	6
+../Core/Src/DTC.c:96:19:DTC_UDS_ReadByStatusMask	8
+../Core/Src/DTC.c:140:26:EE_ReadStatus	2
+../Core/Src/DTC.c:149:26:EE_WaitWriteComplete	4
+../Core/Src/DTC.c:160:19:DTC_SaveToEEPROM	3
+../Core/Src/DTC.c:171:19:DTC_LoadFromEEPROM	3

@@ -8,18 +8,18 @@
 #ifndef INC_PMIC_H_
 #define INC_PMIC_H_
 
+#include <stdint.h>
+#include <stdbool.h>
 
 #include "stm32f4xx_hal.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#define MP5475_I2C_ADDR_7B     (0x60)                     // 0xC0, MP5475GU Address (5p)
-#define I2C_SLAVE_ADDRESS      (MP5475_I2C_ADDR_7B << 1)  // HAL용 8-bit
 
-// Telemetry Register (p.44~45)
-#define PMIC_REG_READ_VOUT        0x8B  // READ_VOUT
-#define PMIC_REG_READ_IOUT        0x8C  // READ_IOUT
-#define PMIC_REG_READ_TEMPERATURE 0x8D  // READ_TEMPERATURE_1
-
+#define MP5475_I2C_ADDR_7bit   (0x60)               	    // 0xC0, MP5475GU Address (5p)
+#define I2C_SLAVE_ADDRESS      (MP5475_I2C_ADDR_7bit << 1)  // HAL용 8-bit
 
 
 // Register Address
@@ -27,12 +27,19 @@ typedef enum {
 	PMIC_REG_FSM_PWR = 0X05,  // Control certain system configuration (42p)
 	PMIC_REG_PG      = 0X06,  // Buck's output and filter's output (42p)
     PMIC_REG_UV_OV   = 0x07,  // Under voltage, Over voltage (42p)
-    PMIC_REG_OC_War  = 0x08,  // Over current, Over current warning (42p)
-	PMIC_REG_SYSTEM  = 0x09   // Error status (43p)
-} PMIC_FaultRegister_t;
+    PMIC_REG_OC_WAR  = 0x08,  // Over current, Over current warning (42p)
+	PMIC_REG_SYSTEM  = 0x09,   // Error status (43p)
+
+    /* VOUT 설정 레지스터 (Datasheet p.41) */
+    PMIC_REG_BUCKA_VOUT = 0x16, // Buck A VOUT_COMMAND
+    PMIC_REG_BUCKB_VOUT = 0x17, // Buck B VOUT_COMMAND
+    PMIC_REG_BUCKC_VOUT = 0x18, // Buck C VOUT_COMMAND
+    PMIC_REG_BUCKD_VOUT = 0x19  // Buck D VOUT_COMMAND
+
+} PMIC_Register_t;
 
 
-// 0x07: [7:4]=UV(A~D), [3:0]=OV(A~D) (43p)
+// 0x07: UV / OV Faults (43p)
 #define PMIC_UV_A_Msk   (1u << 7)
 #define PMIC_UV_B_Msk   (1u << 6)
 #define PMIC_UV_C_Msk   (1u << 5)
@@ -42,7 +49,7 @@ typedef enum {
 #define PMIC_OV_C_Msk   (1u << 1)
 #define PMIC_OV_D_Msk   (1u << 0)
 
-// 0x08: [7:4]=OC(A~D), [3:0]=OC_WARNING(A~D) (43p)
+// 0x08: OC / OC Warnings (43p)
 #define PMIC_OC_A_Msk   (1u << 7)
 #define PMIC_OC_B_Msk   (1u << 6)
 #define PMIC_OC_C_Msk   (1u << 5)
@@ -52,11 +59,7 @@ typedef enum {
 #define PMIC_OCW_C_Msk  (1u << 1)
 #define PMIC_OCW_D_Msk  (1u << 0)
 
-/* 0x09: SYSTEM (44p)
- * bit6=1.8VLDO_FAULT, bit5=1.1VLDO_FAULT, bit4=VR_FAULT,
- * bit3=VBULK_OV, bit2=VDRV_OV, bit1=PMIC_HIGH_TEMP_WARNING,
- * bit0=PMIC_HIGH_TEMP_SHUTDOWN
- */
+// 0x09: SYSTEM Faults (44p)
 #define PMIC_SYS_1V8LDO_FAULT_Msk       (1u << 6)
 #define PMIC_SYS_1V1LDO_FAULT_Msk       (1u << 5)
 #define PMIC_SYS_VR_FAULT_Msk           (1u << 4)
@@ -65,47 +68,8 @@ typedef enum {
 #define PMIC_SYS_TEMP_WARN_Msk          (1u << 1)
 #define PMIC_SYS_TEMP_SHDN_Msk          (1u << 0)
 
-// Data
-typedef union
-{
-    uint8_t raw[8];
 
-    struct
-    {
-        uint16_t voltage;    // [0-1]
-        uint16_t current;    // [2-3]
-        uint16_t temp;       // [4-5]
-        uint8_t  faultFlags; // [6]
-        uint8_t  reserved;   // [7]
-    } parsed;
-
-    struct
-    {
-        uint8_t byte0;
-        uint8_t byte1;
-        uint8_t byte2;
-        uint8_t byte3;
-        uint8_t byte4;
-        uint8_t byte5;
-
-        union
-        {
-            uint8_t allFlags;
-            struct
-            {
-                uint8_t voltageFault : 1;
-                uint8_t currentFault : 1;
-                uint8_t tempFault    : 1;
-                uint8_t reservedBits : 5;
-            };
-        } fault;
-
-        uint8_t reserved;
-    } bitfield;
-
-} MP5475_Data_t;
-
-/* 모든 Fault를 한 번에 읽어 담는 구조체 */
+// Fault 전체 읽기 구조체
 typedef struct
 {
     uint8_t uv_ov;     // Reg 0x07
@@ -113,9 +77,18 @@ typedef struct
     uint8_t system;    // Reg 0x09
 } PMIC_Faults_t;
 
-/* =========================
+/* ================================
  * 함수 프로토타입
- * ========================= */
-HAL_StatusTypeDef PMIC_ReadFaultRegister(I2C_HandleTypeDef *hi2c, PMIC_FaultRegister_t reg, uint8_t *data);
+ * ================================ */
+HAL_StatusTypeDef PMIC_ReadFaultRegister(I2C_HandleTypeDef *hi2c, PMIC_Register_t reg, uint8_t *data);
 HAL_StatusTypeDef PMIC_ReadAllFaults(I2C_HandleTypeDef *hi2c, PMIC_Faults_t *faults);
+HAL_StatusTypeDef PMIC_SetBuckVoltage(I2C_HandleTypeDef *hi2c, PMIC_Register_t buckReg, float voltage_mV);
+
+uint8_t PMIC_HasVoltageFault(const PMIC_Faults_t *faults);
+uint8_t PMIC_HasCurrentFault(const PMIC_Faults_t *faults);
+uint8_t PMIC_HasTempFault(const PMIC_Faults_t *faults);
+
+#ifdef __cplusplus
+}
+#endif
 #endif /* INC_PMIC_H_ */

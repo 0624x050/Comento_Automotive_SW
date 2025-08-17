@@ -34,6 +34,7 @@ extern "C" {
 #include "EEPROM.h"
 #include "UDS_CAN.h"
 #include "PMIC.h"
+#include "Task.h"
 
 
 void Error_Handler(void);

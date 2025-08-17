@@ -1,0 +1,6 @@
+../Core/Src/PMIC.c:12:19:PMIC_ReadFaultRegister	1
+../Core/Src/PMIC.c:26:19:PMIC_ReadAllFaults	4
+../Core/Src/PMIC.c:41:19:PMIC_SetBuckVoltage	3
+../Core/Src/PMIC.c:60:9:PMIC_HasVoltageFault	1
+../Core/Src/PMIC.c:68:9:PMIC_HasCurrentFault	1
+../Core/Src/PMIC.c:74:9:PMIC_HasTempFault	1

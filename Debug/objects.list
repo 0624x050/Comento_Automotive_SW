@@ -1,3 +1,8 @@
+"./Core/Src/DTC.o"
+"./Core/Src/EEPROM.o"
+"./Core/Src/PMIC.o"
+"./Core/Src/Task.o"
+"./Core/Src/UDS_CAN.o"
 "./Core/Src/freertos.o"
 "./Core/Src/main.o"
 "./Core/Src/stm32f4xx_hal_msp.o"

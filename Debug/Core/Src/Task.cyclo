@@ -1,0 +1,5 @@
+../Core/Src/Task.c:18:6:StartDefaultTask	1
+../Core/Src/Task.c:25:6:StartI2CTask	4
+../Core/Src/Task.c:70:6:StartSPITask	2
+../Core/Src/Task.c:89:6:StartCANTask	2
+../Core/Src/Task.c:109:6:StartUARTTask	2
