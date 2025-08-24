@@ -123,6 +123,9 @@ void PMIC_VinMonitorTask(void);  // 1ms 주기 Task
 void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c);
 void HAL_I2C_MemTxCpltCallback(I2C_HandleTypeDef *hi2c);
 
+// === PMIC.h API 섹션 ===
+void PMIC_RecordFaultDTC(I2C_HandleTypeDef *hi2c, SPI_HandleTypeDef *hspi);
+
 #ifdef __cplusplus
 }
 #endif

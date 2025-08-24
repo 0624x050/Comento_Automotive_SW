@@ -130,6 +130,18 @@ HAL_StatusTypeDef PMIC_Init_DMA(I2C_HandleTypeDef *hi2c)
     return HAL_OK;
 }
 
+void PMIC_RecordFaultDTC(I2C_HandleTypeDef *hi2c, SPI_HandleTypeDef *hspi)
+{
+    PMIC_ReadAllFaults_DMA(hi2c);
+
+    uint8_t dtc[EEPROM_PAGE_SIZE] = {0};
+
+    if(PMIC_HasVoltageFault(&g_pmicFaults)) dtc[0] = DTC_UV_FAULT;
+    if(PMIC_HasCurrentFault(&g_pmicFaults)) dtc[1] = DTC_OC_FAULT;
+
+    EEPROM_WriteData_DMA(hspi, 0x0000, dtc, EEPROM_PAGE_SIZE); // EEPROM에 DMA로 기록
+}
+
 
 // === HAL 콜백 구현 ===
 void HAL_I2C_MemRxCpltCallback(I2C_HandleTypeDef *hi2c) { g_pmicTransferDone = 1; }
